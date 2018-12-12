@@ -19,7 +19,7 @@ const merchantsConfig = {
 
 module.exports = {
 
-    fillZore:function(val){
+    fillZero:function(val){
         return val < 10 ? '0' + val : val;
     },
 
