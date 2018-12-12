@@ -140,6 +140,7 @@ module.exports = {
             client.on('data', function(data){
                 //截取字符串第一位，获取验签结果
                 var result = data.toString().split("|")[0];
+                client.destroy();
                 resolve(result == 'Y' ? true : false)
             })
         
@@ -150,13 +151,7 @@ module.exports = {
             client.on('close',function(){
                 console.log('断开！')
             })
-            
-            setTimeout(function(){
-                client.destroy();
-            },2000)
         })
     },
-    
-
     
 }
