@@ -10,16 +10,44 @@ const socketConfig = {
 const merchantsConfig = {
     MERCHANTID : '',
     POSID : '',
-    BRANCHID : '',
+    BRANCHID : '430000000',
     TXCODE : '530550',
     RETURNTYPE : '2',
     CURCODE : '01',
     PUB : ''
 }
 
+const otherBankBtoCConfig = {
+    MERCHANTID : '',
+    POSID : '',
+    BRANCHID : '430000000',
+    CURCODE : '01',
+    TXCODE : '520100',
+    TYPE : '1',
+    PUB : ''
+}
+
+// const btobPayConfig = {
+//     MERCHANTID : '',
+//     POSID : '',
+//     BRANCHID : '430000000',
+//     CURCODE : '01',
+//     TXCODE : '690401',
+//     PUB : ''
+// }
+
+const btobPayConfig = {
+    MERCHANTID : '',
+    POSID : '',
+    BRANCHID : '430000000',
+    CURCODE : '01',
+    TXCODE : '690401',
+    PUB : ''
+}
+
 module.exports = {
 
-    fillZero:function(val){
+    fillZore:function(val){
         return val < 10 ? '0' + val : val;
     },
 
@@ -28,17 +56,20 @@ module.exports = {
         var year = date.getFullYear()+'';
         var month = this.fillZore(date.getMonth()+1);
         var day = this.fillZore(date.getDate());
-        var hour = this.fillZore(date.getHours());
-        var minutes = this.fillZore(date.getMinutes());
+        var hour = date.getHours();
+        var minutes = date.getMinutes()+15;
         var seconds = this.fillZore(date.getSeconds());
 
-        if(parseInt(minutes) > 60){
+        if(minutes > 60){
             hour++;
-            if(parseInt(hour) > 24){
-                hour = '00'
+            if(hour > 24){
+                hour = 0;
             }
             minutes -= 60;
         }
+        
+        minutes = this.fillZore(minutes);
+        hour = this.fillZore(hour);
 
         return year+month+day+hour+minutes+seconds
         
@@ -48,7 +79,7 @@ module.exports = {
         return val ? val : '';
     },
     /**
-     * 
+     * 二维码聚合支付
      * @param {Object} data - 信息
      *                          {
      *                              MERCHANTID : 商户代码 char(15), - 必填
@@ -106,8 +137,76 @@ module.exports = {
         })
 
     },
+
+    /**
+     * 他行银行卡支付
+     * @param {*} data 
+     */
+    otherBankBtoC:function(data){
+        
+        //组合params
+        let formString = 'MERCHANTID=' + otherBankBtoCConfig.MERCHANTID +
+                        '&POSID=' + otherBankBtoCConfig.POSID +
+                        '&BRANCHID=' + otherBankBtoCConfig.BRANCHID +
+                        '&ORDERID=' + this.isExist(data.ORDERID) +
+                        '&PAYMENT=' + this.isExist(data.PAYMENT) +
+                        '&CURCODE=' + otherBankBtoCConfig.CURCODE +
+                        '&TXCODE=' + otherBankBtoCConfig.TXCODE +
+                        '&REMARK1=' + escape(this.isExist(data.REMARK1)) +
+                        '&REMARK2=' + escape(this.isExist(data.REMARK2)) +
+                        '&TYPE=1';
+
+        var footerStr = '&GATEWAY=&CLIENTIP=&REGINFO=&PROINFO=&REFERER='+
+                        '&TIMEOUT=' + this.isExist(this.timeJoint()) +
+                        '&ISSINSCODE=' + data.ISSINSCODE +
+                        '&NoCredit=N&NoDebit=N';
+
+        var formData = 'https://ibsbjstar.ccb.com.cn/CCBIS/ccbMain?' + formString + footerStr + '&MAC=' + md5(formString + '&PUB=' + otherBankBtoCConfig.PUB + footerStr);
+
+        return new Promise((resolve, reject) => {
+            request({
+                url: formData,
+                method: 'POST',
+                json: true,
+                headers:{
+                    "content-type": "application/json",
+                }
+            },function(error, response, body) {
+                    if (!error && response.statusCode == 200) {
+                        // console.log(body)
+                        resolve(body)
+                    }else{
+                        reject(error)
+                    }
+            })
+        })
+    },
+
     /**
      * 
+     * @param {*} data 
+     */
+    companyPay: function(data){
+        var a = new Date().getTime().toString();
+        //组合params
+        let formString = 'MERCHANTID=' + btobPayConfig.MERCHANTID +
+                        '&POSID=' + btobPayConfig.POSID +
+                        '&BRANCHID=' + btobPayConfig.BRANCHID +
+                        '&ORDERID=' + btobPayConfig.MERCHANTID + this.isExist(a) +
+                        '&PAYMENT=' + this.isExist(data.PAYMENT) +
+                        '&CURCODE=' + btobPayConfig.CURCODE +
+                        '&TXCODE=' + btobPayConfig.TXCODE +
+                        '&REMARK1=' + escape(this.isExist(data.ORDERID)) +
+                        '&REMARK2=' + escape(this.isExist(data.REMARK2));// +
+                        // '&TIMEOUT=' + this.isExist(this.timeJoint());
+
+        var formData = 'https://b2bpay.ccb.com/NCCB/NECV5B2BPayMainPlat?' + formString + '&MAC=' + md5(formString);
+        
+        return formData;
+    },
+
+    /**
+     * 获取银行支付回调
      * @param {Object} data - 信息
      *                          {
                                     POSID : 商户柜台代码 char(9),
@@ -130,7 +229,7 @@ module.exports = {
      *                          }
      例：verifyPayStatus('POSID=100001329&BRANCHID=500000000&ORDERID=GWA10081217305965959&PAYMENT=0.01&CURCODE=01&REMARK1=&REMARK2=&SUCCESS=Y&TYPE=1&REFERER=http://114.255.7.208/page/bankpay.do&CLIENTIP=114.255.7.194&SIGN=9a7efc7f15f4b0e7f8fba52649d6b97ae33fad44598a7ca1c26196e8ddba00ecf91a596346e4bfd3cc6d2bdba6c085a3cdb0f231d865d7856e37de89846a371c8bc09f8f2643284260499e1d3f464d9ca9d379fe8af3202a09fc83d39f5c68501a4627d62a3ae891d4b0ff6aa21d61f6ba0e9c8bc5840b292af853d2736ce04a')
      */
-    verifyPaySign:function(data){//服务端验签
+    verifyPaySign:function(data){//服务端
         return new Promise((resolve,reject) => {
             var client = new net.Socket();
             client.connect(socketConfig.port,socketConfig.host,function(){
@@ -151,7 +250,10 @@ module.exports = {
             client.on('close',function(){
                 console.log('断开！')
             })
+        
         })
     },
+    
+
     
 }
